@@ -24,6 +24,21 @@ class TmhOAuth {
 	 */
 	protected $configurationManager;
 
+	protected $params = array();
+	protected $headers = array();
+	protected $auto_fixed_time = false;
+	protected $buffer;
+	protected $config;
+	protected $method;
+	protected $url;
+	protected $request_params;
+	protected $signing_params;
+	protected $auth_params;
+	protected $auth_header;
+	protected $metrics;
+	protected $base_string;
+	protected $signing_key;
+
 	const VERSION = '0.7.2';
 
 	public $response = array();
@@ -34,11 +49,6 @@ class TmhOAuth {
 	public function init() {
 
 		$config = $this->configurationManager->getConfiguration(\TYPO3\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, "Twitter.Fbrnc.ApiSettings");
-
-		$this->params = array();
-		$this->headers = array();
-		$this->auto_fixed_time = false;
-		$this->buffer = null;
 
 		// default configuration options
 		$this->config = array_merge(
@@ -149,8 +159,8 @@ class TmhOAuth {
 	 * Encodes the string or array passed in a way compatible with OAuth.
 	 * If an array is passed each array value will will be encoded.
 	 *
-	 * @param $data the scalar or array to encode
-	 * @return $data encoded in a way compatible with OAuth
+	 * @param $data scalar or array to encode
+	 * @return mixed $data encoded in a way compatible with OAuth
 	 */
 	private function safe_encode($data) {
 		if (is_array($data)) {
@@ -198,8 +208,11 @@ class TmhOAuth {
 		);
 
 		// include the user token if it exists
-		if ($this->config['user_token'])
+		if ($this->config['user_token']) {
 			$defaults['oauth_token'] = $this->config['user_token'];
+		}
+
+		$_defaults = array();
 
 		// safely encode
 		foreach ($defaults as $k => $v) {
@@ -394,7 +407,9 @@ class TmhOAuth {
 				base64_encode(
 					hash_hmac(
 						'sha1', $this->base_string, $this->signing_key, true
-					)));
+					)
+				)
+			);
 
 			$this->prepare_auth_header();
 		}
@@ -407,9 +422,10 @@ class TmhOAuth {
 	 * @param string $method the HTTP method being used. e.g. POST, GET, HEAD etc
 	 * @param string $url the request URL without query string parameters
 	 * @param array $params the request parameters as an array of key=value pairs. Default empty array
-	 * @param string $useauth whether to use authentication when making the request. Default true
-	 * @param string $multipart whether this request contains multipart data. Default false
+	 * @param bool $useauth whether to use authentication when making the request. Default true
+	 * @param bool $multipart whether this request contains multipart data. Default false
 	 * @param array $headers any custom headers to send with the request. Default empty array
+	 * @return mixed
 	 */
 	public function request($method, $url, $params = array(), $useauth = true, $multipart = false, $headers = array()) {
 		$this->config['multipart'] = $multipart;
@@ -436,6 +452,7 @@ class TmhOAuth {
 	 * @param string $url the request URL without query string parameters
 	 * @param array $params the request parameters as an array of key=value pairs
 	 * @param string $callback the callback function to stream the buffer to.
+	 * @return mixed
 	 */
 	public function streaming_request($method, $url, $params = array(), $callback = '') {
 		if (!empty($callback)) {
@@ -504,7 +521,7 @@ class TmhOAuth {
 	 *
 	 * @param string $text the text to transform
 	 * @param string $mode the transformation mode. either encode or decode
-	 * @return the string as transformed by the given mode
+	 * @return string as transformed by the given mode
 	 */
 	public function transformText($text, $mode = 'encode') {
 		return $this->{"safe_$mode"}($text);
@@ -516,7 +533,7 @@ class TmhOAuth {
 	 *
 	 * @param object $ch curl handle
 	 * @param string $header the response headers
-	 * @return the string length of the header
+	 * @return string length of the header
 	 */
 	private function curlHeader($ch, $header) {
 		$this->response['raw'] .= $header;
@@ -536,6 +553,7 @@ class TmhOAuth {
 	 *
 	 * @param object $ch curl handle
 	 * @param string $data the current curl buffer
+	 * @return int
 	 */
 	private function curlWrite($ch, $data) {
 		$l = strlen($data);
@@ -550,8 +568,9 @@ class TmhOAuth {
 		$this->metrics['tweets']++;
 		$this->metrics['bytes'] += strlen($content);
 
-		if (!is_callable($this->config['streaming_callback']))
+		if (!is_callable($this->config['streaming_callback'])) {
 			return 0;
+		}
 
 		$metrics = $this->update_metrics();
 		$stop = call_user_func(
@@ -561,8 +580,9 @@ class TmhOAuth {
 			$metrics
 		);
 		$this->buffer = $buffered[1];
-		if ($stop)
+		if ($stop) {
 			return 0;
+		}
 
 		return $l;
 	}
@@ -571,7 +591,7 @@ class TmhOAuth {
 	 * Makes a curl request. Takes no parameters as all should have been prepared
 	 * by the request method
 	 *
-	 * @return void response data is stored in the class variable 'response'
+	 * @return response data is stored in the class variable 'response'
 	 */
 	private function curlit() {
 		$this->response['raw'] = '';
@@ -583,6 +603,7 @@ class TmhOAuth {
 			default:
 				// GET, DELETE request so convert the parameters to a querystring
 				if (!empty($this->request_params)) {
+					$params = array();
 					foreach ($this->request_params as $k => $v) {
 						// Multipart params haven't been encoded yet.
 						// Not sure why you would do a multipart GET but anyway, here's the support for it
@@ -648,6 +669,7 @@ class TmhOAuth {
 
 		if (!empty($this->request_params)) {
 			// if not doing multipart we need to implode the parameters
+			$ps = array();
 			if (!$this->config['multipart']) {
 				foreach ($this->request_params as $k => $v) {
 					$ps[] = "{$k}={$v}";
@@ -658,6 +680,7 @@ class TmhOAuth {
 		}
 
 		if (!empty($this->headers)) {
+			$headers = array();
 			foreach ($this->headers as $k => $v) {
 				$headers[] = trim($k . ': ' . $v);
 			}
