@@ -24,6 +24,12 @@ class TmhOAuth {
 	 */
 	protected $configurationManager;
 
+	/**
+	 * @Flow\Inject
+	 * @var \TYPO3\Flow\Resource\ResourceManager
+	 */
+	protected $resourceManager;
+
 	protected $params = array();
 	protected $headers = array();
 	protected $auto_fixed_time = false;
@@ -49,6 +55,10 @@ class TmhOAuth {
 	public function init() {
 
 		$config = $this->configurationManager->getConfiguration(\TYPO3\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, "Twitter.Fbrnc.ApiSettings");
+
+		// TODO: this doesn't look like the cleanest solution
+		$config['curl_cainfo'] = FLOW_PATH_PACKAGES . 'Application/Fbrnc.Twitter/Resources/Private/Cacert/cacert.pem';
+		$config['curl_capath'] = dirname($config['curl_cainfo']);
 
 		// default configuration options
 		$this->config = array_merge(
@@ -107,6 +117,9 @@ class TmhOAuth {
 			),
 			$config
 		);
+
+		var_dump($this->config);
+
 		$this->set_user_agent();
 		date_default_timezone_set($this->config['timezone']);
 		return $this;
