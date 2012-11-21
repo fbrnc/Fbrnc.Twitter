@@ -1,0 +1,1 @@
+{"name":"fbrnc\/twitter","type":"typo3-flow-package","description":"","require":{"typo3\/flow":"*"},"autoload":{"psr-0":{"Fbrnc\\Twitter":"Classes"}}}
