@@ -118,8 +118,6 @@ class TmhOAuth {
 			$config
 		);
 
-		var_dump($this->config);
-
 		$this->set_user_agent();
 		date_default_timezone_set($this->config['timezone']);
 		return $this;
